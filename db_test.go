@@ -1488,6 +1488,7 @@ func BenchmarkDBBatchAutomatic(b *testing.B) {
 		b.Fatal(err)
 	}
 
+	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		start := make(chan struct{})
@@ -1531,7 +1532,7 @@ func BenchmarkDBBatchSingle(b *testing.B) {
 	}); err != nil {
 		b.Fatal(err)
 	}
-
+	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		start := make(chan struct{})
@@ -1566,6 +1567,109 @@ func BenchmarkDBBatchSingle(b *testing.B) {
 	validateBatchBench(b, db)
 }
 
+func BenchmarkAlloc1024Op(b *testing.B) {
+	flags := [][]byte{{0, 0, 0, 0}, {1, 1, 1, 1}, {2, 2, 2, 2}, {3, 3, 3, 3}}
+
+	dbfile := b.TempDir() + "/test.db"
+
+	b.Logf("Opening bbolt DB at: %s", dbfile)
+	db, e := bolt.Open(dbfile, 0666, nil)
+	if e != nil {
+		b.Fatal(e)
+	}
+	// Prepare DB with 1024 values
+	err := db.Update(func(tx *bolt.Tx) error {
+		var key [32]byte
+		nb, _ := tx.CreateBucketIfNotExists([]byte{byte(0)})
+		for j := 0; j < 1024; j++ {
+			binary.BigEndian.PutUint16(key[:], uint16(j))
+			err := nb.Put(key[:], flags[0])
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		b.Fatal(err)
+	}
+	db.Close()
+	data, _ := os.ReadFile(dbfile)
+
+	getFreshCopy := func() *bolt.DB {
+		os.Remove(dbfile)
+		os.WriteFile(dbfile, data, 0666)
+		db, e := bolt.Open(dbfile, 0666, nil)
+		if e != nil {
+			b.Fatal(e)
+		}
+		return db
+	}
+
+	for Get_PutNew_PutReplace, Name := range []string{"Get", "PutNew", "PutReplace"} {
+		b.Run(Name, func(b *testing.B) {
+			var key [32]byte
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				testdb := getFreshCopy()
+				err := testdb.Update(func(tx *bolt.Tx) error {
+					bucket, err := tx.CreateBucketIfNotExists([]byte{byte(0)})
+					if err != nil {
+						return err
+					}
+					for j := 0; j < 1024; j++ {
+						binary.BigEndian.PutUint16(key[:], uint16(j))
+						switch Get_PutNew_PutReplace {
+						case 0:
+							key[31] = 0
+							bucket.Get(key[:])
+						case 1:
+							key[31] = 1
+							err := bucket.Put(key[:], flags[i%4])
+							if err != nil {
+								return err
+							}
+						case 2:
+							key[31] = 0
+							err := bucket.Put(key[:], flags[i%4])
+							if err != nil {
+								return err
+							}
+						}
+					}
+					return nil
+				})
+				testdb.Close()
+				if err != nil {
+					b.Fatal(err)
+				}
+			}
+		})
+	}
+
+	b.Run("SharedTxGet", func(b *testing.B) {
+		var key [32]byte
+		testdb := getFreshCopy()
+		err := testdb.View(func(tx *bolt.Tx) error {
+			bucket := tx.Bucket([]byte{byte(0)})
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				for j := 0; j < 1024; j++ {
+					binary.BigEndian.PutUint16(key[:], uint16(i%1024))
+					bucket.Get(key[:])
+				}
+			}
+			return nil
+		})
+		testdb.Close()
+		if err != nil {
+			b.Fatal(err)
+		}
+	})
+}
+
 func BenchmarkDBBatchManual10x100(b *testing.B) {
 	db := btesting.MustCreateDB(b)
 	if err := db.Update(func(tx *bolt.Tx) error {
@@ -1574,7 +1678,7 @@ func BenchmarkDBBatchManual10x100(b *testing.B) {
 	}); err != nil {
 		b.Fatal(err)
 	}
-
+	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		start := make(chan struct{})
