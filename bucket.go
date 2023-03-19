@@ -3,6 +3,7 @@ package bbolt
 import (
 	"bytes"
 	"fmt"
+	"reflect"
 	"unsafe"
 
 	"go.etcd.io/bbolt/internal/common"
@@ -75,7 +76,6 @@ func (b *Bucket) Cursor() *Cursor {
 	b.tx.stats.IncCursorCount(1)
 
 	// Allocate and return a cursor.
-	// If changed, update the code in Tx.seekWithSharedCursor()
 	return &Cursor{
 		bucket: b,
 		stack:  make([]elemRef, 0),
@@ -173,8 +173,7 @@ func (b *Bucket) CreateBucket(key []byte) (*Bucket, error) {
 	var value = bucket.write()
 
 	// Insert into node.
-	key = cloneBytes(key)
-	c.node().put(key, key, value, 0, common.BucketLeafFlag)
+	c.node().put(key, key, value, 0, common.BucketLeafFlag, true)
 
 	// Since subbuckets are not allowed on inline buckets, we need to
 	// dereference the inline page, if it exists. This will cause the bucket
@@ -287,8 +286,7 @@ func (b *Bucket) Put(key []byte, value []byte) error {
 	}
 
 	// Insert into node.
-	key = cloneBytes(key)
-	c.node().put(key, key, value, 0, 0)
+	c.node().put(key, key, value, 0, 0, true)
 
 	return nil
 }
@@ -555,14 +553,15 @@ func (b *Bucket) spill() error {
 		}
 
 		// Update parent node.
-		k, _, flags, c := b.tx.seekWithSharedCursor(b, []byte(name))
-		if !bytes.Equal([]byte(name), k) {
+		unsafeName := *(*[]byte)(unsafe.Pointer(&reflect.SliceHeader{*(*uintptr)(unsafe.Pointer(&name)), len(name), len(name)}))
+		k, _, flags, c := b.tx.seekWithSharedCursor(b, unsafeName)
+		if !bytes.Equal(unsafeName, k) {
 			panic(fmt.Sprintf("misplaced bucket header: %x -> %x", []byte(name), k))
 		}
 		if flags&common.BucketLeafFlag == 0 {
 			panic(fmt.Sprintf("unexpected bucket header flag: %x", flags))
 		}
-		c.node().put([]byte(name), []byte(name), value, 0, common.BucketLeafFlag)
+		c.node().put(unsafeName, unsafeName, value, 0, common.BucketLeafFlag, true)
 	}
 
 	// Ignore if there's not a materialized root node.

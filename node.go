@@ -114,7 +114,7 @@ func (n *node) prevSibling() *node {
 }
 
 // put inserts a key/value.
-func (n *node) put(oldKey, newKey, value []byte, pgId common.Pgid, flags uint32) {
+func (n *node) put(oldKey, newKey, value []byte, pgId common.Pgid, flags uint32, useOldKeyOrClone bool) {
 	if pgId >= n.bucket.tx.meta.Pgid() {
 		panic(fmt.Sprintf("pgId (%d) above high water mark (%d)", pgId, n.bucket.tx.meta.Pgid()))
 	} else if len(oldKey) <= 0 {
@@ -135,7 +135,13 @@ func (n *node) put(oldKey, newKey, value []byte, pgId common.Pgid, flags uint32)
 
 	inode := &n.inodes[index]
 	inode.SetFlags(flags)
-	inode.SetKey(newKey)
+	if useOldKeyOrClone {
+		if !exact {
+			inode.SetKey(cloneBytes(newKey))
+		}
+	} else {
+		inode.SetKey(newKey)
+	}
 	inode.SetValue(value)
 	inode.SetPgid(pgId)
 	common.Assert(len(inode.Key()) > 0, "put: zero-length inode key")
@@ -341,7 +347,7 @@ func (n *node) spill() error {
 				key = node.inodes[0].Key()
 			}
 
-			node.parent.put(key, node.inodes[0].Key(), nil, node.pgid, 0)
+			node.parent.put(key, node.inodes[0].Key(), nil, node.pgid, 0, false)
 			node.key = node.inodes[0].Key()
 			common.Assert(len(node.key) > 0, "spill: zero-length node key")
 		}

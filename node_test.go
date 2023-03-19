@@ -12,10 +12,10 @@ func TestNode_put(t *testing.T) {
 	m := &common.Meta{}
 	m.SetPgid(1)
 	n := &node{inodes: make(common.Inodes, 0), bucket: &Bucket{tx: &Tx{meta: m}}}
-	n.put([]byte("baz"), []byte("baz"), []byte("2"), 0, 0)
-	n.put([]byte("foo"), []byte("foo"), []byte("0"), 0, 0)
-	n.put([]byte("bar"), []byte("bar"), []byte("1"), 0, 0)
-	n.put([]byte("foo"), []byte("foo"), []byte("3"), 0, common.LeafPageFlag)
+	n.put([]byte("baz"), []byte("baz"), []byte("2"), 0, 0, false)
+	n.put([]byte("foo"), []byte("foo"), []byte("0"), 0, 0, false)
+	n.put([]byte("bar"), []byte("bar"), []byte("1"), 0, 0, false)
+	n.put([]byte("foo"), []byte("foo"), []byte("3"), 0, common.LeafPageFlag, false)
 
 	if len(n.inodes) != 3 {
 		t.Fatalf("exp=3; got=%d", len(n.inodes))
@@ -78,9 +78,9 @@ func TestNode_write_LeafPage(t *testing.T) {
 	m := &common.Meta{}
 	m.SetPgid(1)
 	n := &node{isLeaf: true, inodes: make(common.Inodes, 0), bucket: &Bucket{tx: &Tx{db: &DB{}, meta: m}}}
-	n.put([]byte("susy"), []byte("susy"), []byte("que"), 0, 0)
-	n.put([]byte("ricki"), []byte("ricki"), []byte("lake"), 0, 0)
-	n.put([]byte("john"), []byte("john"), []byte("johnson"), 0, 0)
+	n.put([]byte("susy"), []byte("susy"), []byte("que"), 0, 0, false)
+	n.put([]byte("ricki"), []byte("ricki"), []byte("lake"), 0, 0, false)
+	n.put([]byte("john"), []byte("john"), []byte("johnson"), 0, 0, false)
 
 	// Write it to a page.
 	var buf [4096]byte
@@ -112,11 +112,11 @@ func TestNode_split(t *testing.T) {
 	m := &common.Meta{}
 	m.SetPgid(1)
 	n := &node{inodes: make(common.Inodes, 0), bucket: &Bucket{tx: &Tx{db: &DB{}, meta: m}}}
-	n.put([]byte("00000001"), []byte("00000001"), []byte("0123456701234567"), 0, 0)
-	n.put([]byte("00000002"), []byte("00000002"), []byte("0123456701234567"), 0, 0)
-	n.put([]byte("00000003"), []byte("00000003"), []byte("0123456701234567"), 0, 0)
-	n.put([]byte("00000004"), []byte("00000004"), []byte("0123456701234567"), 0, 0)
-	n.put([]byte("00000005"), []byte("00000005"), []byte("0123456701234567"), 0, 0)
+	n.put([]byte("00000001"), []byte("00000001"), []byte("0123456701234567"), 0, 0, false)
+	n.put([]byte("00000002"), []byte("00000002"), []byte("0123456701234567"), 0, 0, false)
+	n.put([]byte("00000003"), []byte("00000003"), []byte("0123456701234567"), 0, 0, false)
+	n.put([]byte("00000004"), []byte("00000004"), []byte("0123456701234567"), 0, 0, false)
+	n.put([]byte("00000005"), []byte("00000005"), []byte("0123456701234567"), 0, 0, false)
 
 	// Split between 2 & 3.
 	n.split(100)
@@ -139,8 +139,8 @@ func TestNode_split_MinKeys(t *testing.T) {
 	m := &common.Meta{}
 	m.SetPgid(1)
 	n := &node{inodes: make(common.Inodes, 0), bucket: &Bucket{tx: &Tx{db: &DB{}, meta: m}}}
-	n.put([]byte("00000001"), []byte("00000001"), []byte("0123456701234567"), 0, 0)
-	n.put([]byte("00000002"), []byte("00000002"), []byte("0123456701234567"), 0, 0)
+	n.put([]byte("00000001"), []byte("00000001"), []byte("0123456701234567"), 0, 0, false)
+	n.put([]byte("00000002"), []byte("00000002"), []byte("0123456701234567"), 0, 0, false)
 
 	// Split.
 	n.split(20)
@@ -155,11 +155,11 @@ func TestNode_split_SinglePage(t *testing.T) {
 	m := &common.Meta{}
 	m.SetPgid(1)
 	n := &node{inodes: make(common.Inodes, 0), bucket: &Bucket{tx: &Tx{db: &DB{}, meta: m}}}
-	n.put([]byte("00000001"), []byte("00000001"), []byte("0123456701234567"), 0, 0)
-	n.put([]byte("00000002"), []byte("00000002"), []byte("0123456701234567"), 0, 0)
-	n.put([]byte("00000003"), []byte("00000003"), []byte("0123456701234567"), 0, 0)
-	n.put([]byte("00000004"), []byte("00000004"), []byte("0123456701234567"), 0, 0)
-	n.put([]byte("00000005"), []byte("00000005"), []byte("0123456701234567"), 0, 0)
+	n.put([]byte("00000001"), []byte("00000001"), []byte("0123456701234567"), 0, 0, false)
+	n.put([]byte("00000002"), []byte("00000002"), []byte("0123456701234567"), 0, 0, false)
+	n.put([]byte("00000003"), []byte("00000003"), []byte("0123456701234567"), 0, 0, false)
+	n.put([]byte("00000004"), []byte("00000004"), []byte("0123456701234567"), 0, 0, false)
+	n.put([]byte("00000005"), []byte("00000005"), []byte("0123456701234567"), 0, 0, false)
 
 	// Split.
 	n.split(4096)
