@@ -29,6 +29,7 @@ type Tx struct {
 	root           Bucket
 	pages          map[common.Pgid]*common.Page
 	stats          TxStats
+	reusableRef    []elemRef // always stored with 0 len
 	commitHandlers []func()
 
 	// WriteFlag specifies the flag for write-related methods like WriteTo().
@@ -585,6 +586,16 @@ func (tx *Tx) Page(id int) (*common.PageInfo, error) {
 	}
 
 	return info, nil
+}
+
+// seekWithSharedCursor should be used in internal functions.
+// Reuses []elemRef stored in Tx to remove unnecessary allocations.
+func (tx *Tx) seekWithSharedCursor(b *Bucket, seek []byte) (key []byte, value []byte, flags uint32, cursor Cursor) {
+	// should be 100% compatible with Bucket.Cursor()
+	cursor = Cursor{bucket: b, stack: tx.reusableRef}
+	key, value, flags = cursor.seek(seek)
+	tx.reusableRef = cursor.stack[:0]
+	return
 }
 
 // TxStats represents statistics about the actions performed by the transaction.
